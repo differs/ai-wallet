@@ -35,6 +35,94 @@ Request:
 }
 ```
 
+## `POST /v1/evm/verify-typed-data`
+
+Verifies an EIP-712 typed-data signature.
+
+Request:
+
+```json
+{
+  "chain_id": 1,
+  "expected_address": "0x8f3a20f605217d87DcC2f1F7c36c08f007550961",
+  "typed_data": {
+    "types": {
+      "EIP712Domain": [
+        {"name": "name", "type": "string"},
+        {"name": "version", "type": "string"},
+        {"name": "chainId", "type": "uint256"},
+        {"name": "verifyingContract", "type": "address"}
+      ],
+      "Mail": [
+        {"name": "contents", "type": "string"}
+      ]
+    },
+    "primaryType": "Mail",
+    "domain": {
+      "name": "AI Wallet",
+      "version": "1",
+      "chainId": 1,
+      "verifyingContract": "0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC"
+    },
+    "message": {
+      "contents": "hello typed data"
+    }
+  },
+  "signature_hex": "0x..."
+}
+```
+
+## `POST /v1/evm/prepare-transfer`
+
+Builds a canonical native or ERC-20 transfer payload.
+
+Request:
+
+```json
+{
+  "chain_id": 1,
+  "from_address": "0x8f3a20f605217d87DcC2f1F7c36c08f007550961",
+  "to_address": "0x1111111111111111111111111111111111111111",
+  "asset": {
+    "kind": "erc20",
+    "token_address": "0x2222222222222222222222222222222222222222",
+    "decimals": 18
+  },
+  "amount": "1000000000000000000",
+  "nonce": 9
+}
+```
+
+## `POST /v1/evm/simulate-transaction`
+
+Runs pre-sign transaction validation. Current implementation is static simulation with an RPC-ready mode flag.
+
+Request:
+
+```json
+{
+  "chain_id": 1,
+  "from_address": "0x8f3a20f605217d87DcC2f1F7c36c08f007550961",
+  "to": "0x1111111111111111111111111111111111111111",
+  "value_wei": "0",
+  "data_hex": "0x",
+  "gas_limit": 21000
+}
+```
+
+Response:
+
+```json
+{
+  "mode": "static",
+  "success": true,
+  "estimated_gas": 21000,
+  "warnings": [
+    "AI_WALLET_RPC_URL is not set; using static simulation instead of live RPC"
+  ]
+}
+```
+
 Response:
 
 ```json

@@ -1,6 +1,4 @@
-use std::net::SocketAddr;
-
-use ai_wallet::build_app;
+use ai_wallet::{build_app, config::AppConfig};
 use tokio::net::TcpListener;
 use tracing::info;
 
@@ -13,9 +11,10 @@ async fn main() {
         )
         .init();
 
-    let app = build_app();
-    let addr = SocketAddr::from(([127, 0, 0, 1], 8080));
-    let listener = TcpListener::bind(addr)
+    let config = AppConfig::from_env();
+    let bind_addr = config.bind_addr.clone();
+    let app = build_app(config);
+    let listener = TcpListener::bind(&bind_addr)
         .await
         .expect("bind ai-wallet listener");
 

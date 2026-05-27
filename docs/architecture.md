@@ -131,10 +131,10 @@ The API should expose business-safe primitives, not raw key operations. Recommen
 
 ### Phase 2
 
-- Real isolated signer integration.
-- EIP-712.
-- Transfer and ERC-20 flows.
-- Transaction simulation.
+- Isolated signer protocol abstraction with a local-dev signer adapter.
+- EIP-712 verification and typed-data signing flow.
+- Native and ERC-20 transfer preparation.
+- Static transaction simulation with an RPC-ready extension point.
 
 ### Phase 3
 
