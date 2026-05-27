@@ -9,6 +9,9 @@ pub struct ApiInfo {
     pub version: &'static str,
     pub supported_chains: Vec<&'static str>,
     pub isolation_model: &'static str,
+    pub auth_mode: &'static str,
+    pub audit_backend: &'static str,
+    pub signer_mode: &'static str,
 }
 
 #[derive(Debug, Deserialize)]
@@ -131,10 +134,25 @@ pub enum ExecutionMode {
     IsolatedSigner,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct SignedArtifact {
     pub signature_hex: String,
     pub digest_hex: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct SignerRpcSignRequest {
+    pub request_id: Uuid,
+    pub tenant_id: String,
+    pub wallet_id: String,
+    pub chain_id: u64,
+    pub from_address: String,
+    pub payload: SignPayload,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct SignerRpcSignResponse {
+    pub signed_artifact: SignedArtifact,
 }
 
 #[derive(Debug, Deserialize)]
@@ -197,4 +215,72 @@ pub struct SimulateTransactionResponse {
 pub enum SimulationMode {
     Static,
     Rpc,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct BroadcastTransactionRequest {
+    pub request_id: Option<Uuid>,
+    pub chain_id: u64,
+    pub raw_transaction_hex: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct BroadcastTransactionResponse {
+    pub broadcast_id: Uuid,
+    pub status: BroadcastState,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct BroadcastStatusResponse {
+    pub broadcast_id: Uuid,
+    pub request_id: Option<Uuid>,
+    pub chain_id: u64,
+    pub status: BroadcastState,
+    pub tx_hash: Option<String>,
+    pub error: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum BroadcastState {
+    Queued,
+    Submitted,
+    Failed,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ListAuditEventsQuery {
+    pub limit: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ListAuditEventsResponse {
+    pub events: Vec<AuditEvent>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct AuditEvent {
+    pub id: Uuid,
+    pub request_id: Option<Uuid>,
+    pub tenant_id: Option<String>,
+    pub wallet_id: Option<String>,
+    pub actor: Option<String>,
+    pub action: String,
+    pub status: String,
+    pub metadata: Value,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone)]
+pub struct AuditEventInput {
+    pub request_id: Option<Uuid>,
+    pub tenant_id: Option<String>,
+    pub wallet_id: Option<String>,
+    pub actor: Option<String>,
+    pub action: String,
+    pub status: String,
+    pub metadata: Value,
 }

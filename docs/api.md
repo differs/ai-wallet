@@ -15,9 +15,20 @@ Example response:
   "service": "ai-wallet",
   "version": "0.1.0",
   "supported_chains": ["ethereum", "base", "arbitrum", "optimism", "bsc"],
-  "isolation_model": "api gateway + isolated signer worker + policy engine"
+  "isolation_model": "api gateway + isolated signer worker + policy engine",
+  "auth_mode": "hmac",
+  "audit_backend": "postgres",
+  "signer_mode": "isolated-signer"
 }
 ```
+
+## Authentication
+
+When HMAC auth is enabled, `/v1/*` requests must include:
+
+- `x-ai-wallet-key`
+- `x-ai-wallet-timestamp`
+- `x-ai-wallet-signature`
 
 ## `POST /v1/evm/verify-message`
 
@@ -31,6 +42,17 @@ Request:
   "expected_address": "0x8f3a20f605217d87DcC2f1F7c36c08f007550961",
   "message": "hello ai-wallet",
   "signature_hex": "0xc4827b54c87c595f4395e8dba581616b12fb5f49b191d87cd4d00a616361bcbe46e7108c0828a661571a74fedd0faec8ae09ee7cbbd5e2015cb5e21e2a63d4831b",
+  "encoding": "eip191"
+}
+```
+
+Response:
+
+```json
+{
+  "valid": true,
+  "recovered_address": "0x8f3a20f605217d87dcc2f1f7c36c08f007550961",
+  "chain_id": 1,
   "encoding": "eip191"
 }
 ```
@@ -123,17 +145,6 @@ Response:
 }
 ```
 
-Response:
-
-```json
-{
-  "valid": true,
-  "recovered_address": "0x8f3a20f605217d87dcc2f1f7c36c08f007550961",
-  "chain_id": 1,
-  "encoding": "eip191"
-}
-```
-
 ## `POST /v1/evm/sign-intent`
 
 Accepts an EVM sign or payment intent after policy evaluation.
@@ -166,6 +177,38 @@ Request:
   }
 }
 ```
+
+## `POST /v1/evm/broadcast-transaction`
+
+Queues an async raw transaction broadcast.
+
+Request:
+
+```json
+{
+  "request_id": null,
+  "chain_id": 1,
+  "raw_transaction_hex": "0x02f8..."
+}
+```
+
+Response:
+
+```json
+{
+  "broadcast_id": "uuid",
+  "status": "queued",
+  "created_at": "2026-05-28T01:00:00Z"
+}
+```
+
+## `GET /v1/evm/broadcast-status/{broadcast_id}`
+
+Returns the current worker state for a broadcast job.
+
+## `GET /v1/audit-events?limit=50`
+
+Returns recent audit records from memory or Postgres.
 
 Approved response:
 

@@ -78,6 +78,11 @@ The API should expose business-safe primitives, not raw key operations. Recommen
 - External callers: API key + HMAC request signing, or OAuth2 client credentials, or mTLS.
 - Internal components: SPIFFE/SPIRE or mTLS service identities.
 
+Current implementation:
+
+- HMAC request authentication on `/v1/*`.
+- Signer RPC over HTTPS with mutual TLS.
+
 ### Authorization
 
 - Tenant-scoped wallets.
@@ -95,6 +100,11 @@ The API should expose business-safe primitives, not raw key operations. Recommen
 - Write immutable request, decision, and signature metadata.
 - Persist request payload digests, not sensitive plaintext if avoidable.
 - Include `tenant_id`, `wallet_id`, `actor`, `source_ip`, and `idempotency_key`.
+
+Current implementation:
+
+- Memory-backed audit in development.
+- Postgres-backed audit persistence when `DATABASE_URL` is configured.
 
 ### Replay protection
 
@@ -138,6 +148,7 @@ The API should expose business-safe primitives, not raw key operations. Recommen
 
 ### Phase 3
 
-- Multi-tenant production controls.
-- Human-in-the-loop review queue.
-- Broadcast workers and reconciliation.
+- HMAC API authentication.
+- Signer RPC over mTLS with a dedicated `signer-worker`.
+- Postgres audit persistence.
+- Async broadcast worker and status tracking.

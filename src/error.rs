@@ -10,6 +10,8 @@ use thiserror::Error;
 pub enum AppError {
     #[error("bad request: {0}")]
     BadRequest(String),
+    #[error("unauthorized: {0}")]
+    Unauthorized(String),
     #[error("policy denied: {0}")]
     PolicyDenied(String),
     #[error("signer unavailable: {0}")]
@@ -27,6 +29,7 @@ impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let status = match self {
             Self::BadRequest(_) => StatusCode::BAD_REQUEST,
+            Self::Unauthorized(_) => StatusCode::UNAUTHORIZED,
             Self::PolicyDenied(_) => StatusCode::FORBIDDEN,
             Self::SignerUnavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
             Self::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,

@@ -1,4 +1,4 @@
-use ai_wallet::{build_app, config::AppConfig};
+use ai_wallet::{build_app, build_state, config::AppConfig};
 use tokio::net::TcpListener;
 use tracing::info;
 
@@ -13,7 +13,8 @@ async fn main() {
 
     let config = AppConfig::from_env();
     let bind_addr = config.bind_addr.clone();
-    let app = build_app(config);
+    let state = build_state(config).await.expect("build app state");
+    let app = build_app(state);
     let listener = TcpListener::bind(&bind_addr)
         .await
         .expect("bind ai-wallet listener");

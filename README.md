@@ -16,13 +16,23 @@ Rust implementation skeleton for an AI-facing wallet control plane. The service 
 - `POST /v1/evm/prepare-transfer`: build canonical native or ERC-20 transfers.
 - `POST /v1/evm/simulate-transaction`: validate and pre-simulate transaction execution.
 - `POST /v1/evm/sign-intent`: submit a signing or payment intent to the policy engine and signer gateway.
+- `POST /v1/evm/broadcast-transaction`: queue raw transaction broadcast through an async worker.
+- `GET /v1/evm/broadcast-status/{id}`: inspect broadcast job state.
+- `GET /v1/audit-events`: read audit records from memory or Postgres.
 - `GET /v1/info`: inspect supported chains and deployment model.
 - `GET /healthz`: health check.
 
-This repository now ships two signer modes:
+This repository now ships three signer modes:
 
 - `mock`: deterministic fake signatures for API and policy testing.
 - `local-dev`: dev-only signer backed by `AI_WALLET_DEV_PRIVATE_KEY`, shaped like the future isolated signer boundary.
+- `remote-mtls`: signer RPC client over HTTPS with mutual TLS.
+
+It also supports:
+
+- HMAC request authentication for API callers.
+- Postgres-backed audit persistence when `DATABASE_URL` is configured.
+- A separate `signer-worker` binary that serves the signing RPC behind mTLS.
 
 ## Architecture
 
@@ -32,6 +42,7 @@ See [docs/architecture.md](/home/de/works/ai-wallet/docs/architecture.md) for th
 
 ```bash
 cargo run
+cargo run --bin signer-worker
 ```
 
 Server default:
@@ -41,9 +52,41 @@ Server default:
 Environment:
 
 - `AI_WALLET_BIND=127.0.0.1:8080`
-- `AI_WALLET_SIGNER_MODE=mock|local-dev`
+- `AI_WALLET_AUTH_MODE=disabled|hmac`
+- `AI_WALLET_API_KEY=...`
+- `AI_WALLET_API_SECRET=...`
+- `DATABASE_URL=postgres://...`
+- `AI_WALLET_SIGNER_MODE=mock|local-dev|remote-mtls`
 - `AI_WALLET_DEV_PRIVATE_KEY=0x...`
+- `AI_WALLET_SIGNER_URL=https://127.0.0.1:9443`
+- `AI_WALLET_SIGNER_CLIENT_CERT_PATH=...`
+- `AI_WALLET_SIGNER_CLIENT_KEY_PATH=...`
+- `AI_WALLET_SIGNER_CA_CERT_PATH=...`
+- `AI_WALLET_SIGNER_BIND=127.0.0.1:9443`
+- `AI_WALLET_SIGNER_TLS_CERT_PATH=...`
+- `AI_WALLET_SIGNER_TLS_KEY_PATH=...`
+- `AI_WALLET_SIGNER_CLIENT_CA_CERT_PATH=...`
 - `AI_WALLET_RPC_URL=https://...`
+
+## Auth signing
+
+When `AI_WALLET_AUTH_MODE=hmac`, requests to `/v1/*` must include:
+
+- `x-ai-wallet-key`
+- `x-ai-wallet-timestamp`
+- `x-ai-wallet-signature`
+
+Canonical string:
+
+```text
+{timestamp}\n{METHOD}\n{PATH}\n{base64(body)}
+```
+
+Signature format:
+
+```text
+sha256={hex(hmac_sha256(api_secret, canonical_string))}
+```
 
 ## Test
 
@@ -152,10 +195,27 @@ curl -X POST http://127.0.0.1:8080/v1/evm/prepare-transfer \
   }'
 ```
 
+Queue a raw transaction broadcast:
+
+```bash
+curl -X POST http://127.0.0.1:8080/v1/evm/broadcast-transaction \
+  -H 'content-type: application/json' \
+  -d '{
+    "request_id": null,
+    "chain_id": 1,
+    "raw_transaction_hex": "0x02f8..."
+  }'
+```
+
+## Running with remote signer mTLS
+
+1. Start `signer-worker` with a server cert, key, and trusted client CA.
+2. Configure the wallet API with `AI_WALLET_SIGNER_MODE=remote-mtls`.
+3. Point `AI_WALLET_SIGNER_URL` to the signer worker and provide the client cert, key, and signer CA files.
+
 ## Next implementation steps
 
-1. Replace `local-dev` signer with a real enclave/HSM RPC transport plus attestation or mTLS.
+1. Replace the software signer worker with a real enclave or HSM-backed implementation.
 2. Add live RPC-backed simulation, nonce sourcing, and fee estimation.
-3. Persist audit logs and request state in Postgres.
-4. Add broadcast workers and reconciliation.
-5. Add caller authentication and tenant-scoped authorization.
+3. Add retry policy, dead-letter handling, and reconciliation for broadcast jobs.
+4. Add richer authorization policy by tenant, wallet, token, and contract selector.

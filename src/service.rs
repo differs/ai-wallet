@@ -10,23 +10,30 @@ use ethers_core::{
     utils::{hash_message, id},
 };
 use ethers_signers::{LocalWallet, Signer};
+use serde_json::json;
 use uuid::Uuid;
 
 use crate::{
+    audit::AuditRepository,
+    auth::ApiAuth,
+    broadcast::BroadcastService,
     error::AppError,
     model::{
-        ExecutionMode, MessageEncoding, OperationKind, PolicyDecision, PrepareTransferRequest,
-        PrepareTransferResponse, PreparedTransaction, SignIntentRequest, SignIntentResponse,
-        SignPayload, SignedArtifact, SimulateTransactionRequest, SimulateTransactionResponse,
-        SimulationMode, TransferAsset, VerifyMessageRequest, VerifyMessageResponse,
-        VerifyTypedDataRequest, VerifyTypedDataResponse,
+        AuditEventInput, ExecutionMode, MessageEncoding, OperationKind, PolicyDecision,
+        PrepareTransferRequest, PrepareTransferResponse, PreparedTransaction, SignIntentRequest,
+        SignIntentResponse, SignPayload, SignedArtifact, SimulateTransactionRequest,
+        SimulateTransactionResponse, SimulationMode, TransferAsset, VerifyMessageRequest,
+        VerifyMessageResponse, VerifyTypedDataRequest, VerifyTypedDataResponse,
     },
 };
 
 pub struct AppState {
+    pub api_auth: ApiAuth,
     pub policy_engine: PolicyEngine,
     pub signer: Arc<dyn SignerGateway>,
     pub simulator: Arc<dyn TransactionSimulator>,
+    pub audit: Arc<dyn AuditRepository>,
+    pub broadcast: BroadcastService,
 }
 
 #[derive(Default)]
@@ -408,13 +415,40 @@ pub async fn handle_sign_intent(
         PolicyDecision::Denied | PolicyDecision::RequiresReview => None,
     };
 
-    Ok(SignIntentResponse {
+    let response = SignIntentResponse {
         request_id,
         decision,
         execution_mode: state.signer.execution_mode(),
         signed_artifact,
         created_at: chrono::Utc::now(),
-    })
+    };
+
+    let audit = Arc::clone(&state.audit);
+    let tenant_id = req.tenant_id.clone();
+    let wallet_id = req.wallet_id.clone();
+    let actor = req.policy_context.actor.clone();
+    let operation = format!("{:?}", req.operation).to_lowercase();
+    let decision = format!("{:?}", response.decision).to_lowercase();
+    let execution_mode = format!("{:?}", response.execution_mode).to_lowercase();
+    let request_id = response.request_id;
+    tokio::spawn(async move {
+        let _ = audit
+            .record(AuditEventInput {
+                request_id: Some(request_id),
+                tenant_id: Some(tenant_id),
+                wallet_id: Some(wallet_id),
+                actor: Some(actor),
+                action: "sign_intent".into(),
+                status: decision,
+                metadata: json!({
+                    "operation": operation,
+                    "execution_mode": execution_mode,
+                }),
+            })
+            .await;
+    });
+
+    Ok(response)
 }
 
 pub async fn simulate_transaction(
@@ -424,7 +458,28 @@ pub async fn simulate_transaction(
     if req.chain_id == 0 {
         return Err(AppError::BadRequest("chain_id must be non-zero".into()));
     }
-    state.simulator.simulate(&req).await
+    let result = state.simulator.simulate(&req).await?;
+    let _ = state
+        .audit
+        .record(AuditEventInput {
+            request_id: None,
+            tenant_id: None,
+            wallet_id: None,
+            actor: None,
+            action: "simulate_transaction".into(),
+            status: if result.success {
+                "success".into()
+            } else {
+                "warning".into()
+            },
+            metadata: json!({
+                "chain_id": req.chain_id,
+                "estimated_gas": result.estimated_gas,
+                "warnings": result.warnings,
+            }),
+        })
+        .await?;
+    Ok(result)
 }
 
 fn parse_address(value: &str) -> Result<Address, AppError> {
